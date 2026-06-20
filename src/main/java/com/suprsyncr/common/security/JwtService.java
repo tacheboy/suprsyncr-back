@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.common.security;
+package com.suprsyncr.common.security;
 
 import org.springframework.security.core.userdetails.UserDetails;
 

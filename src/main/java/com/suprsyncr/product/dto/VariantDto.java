@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.dto;
+package com.suprsyncr.product.dto;
 
 import java.math.BigDecimal;
 import java.util.Map;

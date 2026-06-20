@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.provider;
+package com.suprsyncr.analytics.provider;
 
 import com.suprsyncr.analytics.domain.DummyDailyOrder;
 import com.suprsyncr.analytics.domain.DummyProduct;

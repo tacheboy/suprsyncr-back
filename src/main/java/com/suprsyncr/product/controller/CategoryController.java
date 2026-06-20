@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.controller;
+package com.suprsyncr.product.controller;
 
 import com.suprsyncr.common.dto.ApiResponse;
 import com.suprsyncr.product.dto.CategoryDto;

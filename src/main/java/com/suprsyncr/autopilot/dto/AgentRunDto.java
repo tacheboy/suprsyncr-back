@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.autopilot.dto;
+package com.suprsyncr.autopilot.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;

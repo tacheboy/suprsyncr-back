@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.prompt;
+package com.suprsyncr.ai.prompt;
 
 public class ChatPrompt {
     public static String system(String richContext) {

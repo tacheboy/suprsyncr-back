@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.prompt;
+package com.suprsyncr.ai.prompt;
 
 import com.suprsyncr.ai.dto.ProductGenerateRequest;
 

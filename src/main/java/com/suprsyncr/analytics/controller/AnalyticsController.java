@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.controller;
+package com.suprsyncr.analytics.controller;
 
 import com.suprsyncr.analytics.dto.ProductHealthResponse;
 import com.suprsyncr.analytics.dto.RevenueLeakResponse;

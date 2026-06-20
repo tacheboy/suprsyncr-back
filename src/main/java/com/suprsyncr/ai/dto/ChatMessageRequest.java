@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.dto;
+package com.suprsyncr.ai.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

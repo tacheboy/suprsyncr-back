@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.repository;
+package com.suprsyncr.ai.repository;
 
 import com.suprsyncr.ai.domain.AiChatSession;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.order.entity;
+package com.suprsyncr.order.entity;
 
 /**
  * Enum representing the lifecycle status of an order.

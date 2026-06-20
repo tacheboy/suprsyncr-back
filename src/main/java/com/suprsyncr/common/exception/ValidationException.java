@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.common.exception;
+package com.suprsyncr.common.exception;
 
 /**
  * Exception thrown when validation fails.

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.scheduler;
+package com.suprsyncr.analytics.scheduler;
 
 import com.suprsyncr.analytics.repository.DummyStoreRepository;
 import com.suprsyncr.analytics.service.AnalyticsOrchestrator;

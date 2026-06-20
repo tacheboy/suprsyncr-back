@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.listing.entity;
+package com.suprsyncr.listing.entity;
 
 /**
  * Enum representing the status of a product listing on a marketplace platform.

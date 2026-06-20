@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.domain;
+package com.suprsyncr.analytics.domain;
 
 import jakarta.persistence.*;
 import lombok.*;

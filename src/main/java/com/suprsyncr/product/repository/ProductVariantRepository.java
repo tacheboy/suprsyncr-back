@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.repository;
+package com.suprsyncr.product.repository;
 
 import com.suprsyncr.product.entity.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;

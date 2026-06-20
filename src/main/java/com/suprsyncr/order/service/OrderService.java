@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.order.service;
+package com.suprsyncr.order.service;
 
 import com.suprsyncr.integration.connector.ExternalOrder;
 import com.suprsyncr.order.dto.*;

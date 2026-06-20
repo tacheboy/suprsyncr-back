@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.dto;
+package com.suprsyncr.auth.dto;
 
 /**
  * Response DTO for authentication operations.

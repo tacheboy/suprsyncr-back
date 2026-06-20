@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.entity;
+package com.suprsyncr.seller.entity;
 
 /**
  * Enum representing the connection status of a platform.

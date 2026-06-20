@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.dto;
+package com.suprsyncr.seller.dto;
 
 /**
  * DTO for warehouse information.

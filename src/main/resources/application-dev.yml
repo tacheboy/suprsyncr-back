@@ -34,7 +34,7 @@ jwt:
 # OpenAI for Development — set OPENAI_API_KEY in your environment or here
 suprsyncr:
   openai:
-    api-key: ${OPENAI_API_KEY:}
+    api-key: sk-... # Set this in your environment or here for local dev
     model: gpt-4o
     max-output-tokens: 4096
     temperature: 0.7

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.dto;
+package com.suprsyncr.inventory.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

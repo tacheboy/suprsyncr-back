@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.dto;
+package com.suprsyncr.product.dto;
 
 /**
  * DTO for product category response.

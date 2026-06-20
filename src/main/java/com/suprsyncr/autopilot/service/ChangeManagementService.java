@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.autopilot.service;
+package com.suprsyncr.autopilot.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -162,14 +162,34 @@ public class ChangeManagementService {
             throw new IllegalStateException("Change is not approved: " + change.getStatus());
         }
 
-        Map<String, String> credentials = credentialResolver.resolveCredentials(change.getStoreId());
+        boolean shopifyConnected = credentialResolver.isShopifyConnected(change.getStoreId());
 
         change.setStatus("APPLYING");
         changeRepository.save(change);
-        log.info("Applying change {} (type: {}, entity: {})",
-                changeId, change.getChangeType(), change.getShopifyEntityId());
+        log.info("Applying change {} (type: {}, entity: {}, shopify={})",
+                changeId, change.getChangeType(), change.getShopifyEntityId(), shopifyConnected);
 
         try {
+            if (!shopifyConnected) {
+                // Demo / non-Shopify store: simulate the write locally so the approval
+                // queue and Impact Lab work end-to-end without a live storefront. A real
+                // store would push to Shopify below.
+                try {
+                    snapshotEntity(change);
+                } catch (Exception se) {
+                    log.warn("Snapshot skipped for simulated apply of change {}: {}", changeId, se.getMessage());
+                }
+                change.setStatus("APPLIED");
+                change.setAppliedAt(LocalDateTime.now());
+                change.setRollbackAvailableUntil(LocalDateTime.now().plusDays(30));
+                changeRepository.save(change);
+                log.info("Change {} applied (simulated — no connected Shopify store for storeId {})",
+                        changeId, change.getStoreId());
+                return true;
+            }
+
+            Map<String, String> credentials = credentialResolver.resolveCredentials(change.getStoreId());
+
             // Snapshot current state before applying
             snapshotEntity(change);
 
@@ -211,6 +231,15 @@ public class ChangeManagementService {
 
         if (!"APPLIED".equals(change.getStatus())) {
             throw new IllegalStateException("Change is not applied: " + change.getStatus());
+        }
+
+        if (!credentialResolver.isShopifyConnected(change.getStoreId())) {
+            // Demo / non-Shopify store: simulated rollback (nothing was written to a storefront).
+            change.setStatus("ROLLED_BACK");
+            changeRepository.save(change);
+            log.info("Change {} rolled back (simulated — no connected Shopify store for storeId {})",
+                    changeId, change.getStoreId());
+            return true;
         }
 
         Map<String, String> credentials = credentialResolver.resolveCredentials(change.getStoreId());

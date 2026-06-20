@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.listing.dto;
+package com.suprsyncr.listing.dto;
 
 import com.suprsyncr.listing.entity.ListingStatus;
 import com.suprsyncr.seller.entity.PlatformType;

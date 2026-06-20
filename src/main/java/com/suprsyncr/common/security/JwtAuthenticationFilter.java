@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.common.security;
+package com.suprsyncr.common.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.dto;
+package com.suprsyncr.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

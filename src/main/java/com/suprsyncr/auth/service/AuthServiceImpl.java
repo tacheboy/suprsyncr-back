@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.service;
+package com.suprsyncr.auth.service;
 
 import com.suprsyncr.auth.dto.*;
 import com.suprsyncr.auth.entity.RefreshToken;
@@ -9,6 +9,9 @@ import com.suprsyncr.auth.repository.UserRepository;
 import com.suprsyncr.common.exception.UnauthorizedException;
 import com.suprsyncr.common.exception.ValidationException;
 import com.suprsyncr.common.security.JwtService;
+import com.suprsyncr.seller.entity.Seller;
+import com.suprsyncr.seller.entity.SellerStatus;
+import com.suprsyncr.seller.repository.SellerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,15 +40,17 @@ public class AuthServiceImpl implements AuthService {
     
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final SellerRepository sellerRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
-    
+
     public AuthServiceImpl(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
+            SellerRepository sellerRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             AuthenticationManager authenticationManager,
@@ -53,11 +58,35 @@ public class AuthServiceImpl implements AuthService {
             @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.sellerRepository = sellerRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
+    }
+
+    /**
+     * Ensures every authenticated user has a Seller profile. The entire product is
+     * seller-scoped (AI tools, analytics, autopilot, products, orders), so a missing
+     * Seller row makes those endpoints fail with "Seller profile not found". A minimal
+     * profile is created with placeholder details the user can edit in Seller Profile.
+     */
+    private void ensureSellerExists(User user) {
+        if (sellerRepository.findByUserId(user.getId()).isPresent()) {
+            return;
+        }
+        Seller seller = new Seller();
+        seller.setUser(user);
+        String name = (user.getFullName() != null && !user.getFullName().isBlank())
+                ? user.getFullName() + "'s Store"
+                : "My Store";
+        seller.setBusinessName(name);
+        seller.setBusinessAddress("Not provided");
+        seller.setPhoneNumber("Not provided");
+        seller.setStatus(SellerStatus.ACTIVE);
+        sellerRepository.save(seller);
+        log.info("Auto-provisioned seller profile for userId: {}", user.getId());
     }
     
     @Override
@@ -79,11 +108,15 @@ public class AuthServiceImpl implements AuthService {
         user.setEnabled(true);
         
         user = userRepository.save(user);
-        
+
+        // Every user is a seller — provision their profile up-front so seller-scoped
+        // features (AI tools, analytics, autopilot) work immediately after signup.
+        ensureSellerExists(user);
+
         // Generate tokens
         String accessToken = jwtService.generateAccessToken(user);
         String refreshTokenString = UUID.randomUUID().toString();
-        
+
         // Save refresh token
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(refreshTokenString);
@@ -91,7 +124,7 @@ public class AuthServiceImpl implements AuthService {
         refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenExpiration / 1000));
         refreshToken.setRevoked(false);
         refreshTokenRepository.save(refreshToken);
-        
+
         log.info("Registration successful for email: {}, userId: {}", request.email(), user.getId());
         
         // Build response
@@ -110,7 +143,11 @@ public class AuthServiceImpl implements AuthService {
             );
             
             User user = (User) authentication.getPrincipal();
-            
+
+            // Backfill a seller profile for accounts created before auto-provisioning
+            // existed, so existing users get seller-scoped features without re-registering.
+            ensureSellerExists(user);
+
             // Generate tokens
             String accessToken = jwtService.generateAccessToken(user);
             String refreshTokenString = UUID.randomUUID().toString();

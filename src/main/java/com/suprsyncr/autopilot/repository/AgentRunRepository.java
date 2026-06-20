@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.autopilot.repository;
+package com.suprsyncr.autopilot.repository;
 
 import com.suprsyncr.autopilot.domain.AgentRun;
 import org.springframework.data.jpa.repository.JpaRepository;

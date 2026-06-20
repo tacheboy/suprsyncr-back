@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.entity;
+package com.suprsyncr.product.entity;
 
 /**
  * Enum representing the status of a product.

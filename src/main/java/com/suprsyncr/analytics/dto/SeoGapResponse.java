@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.dto;
+package com.suprsyncr.analytics.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;

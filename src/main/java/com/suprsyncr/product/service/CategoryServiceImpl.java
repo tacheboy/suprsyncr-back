@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.service;
+package com.suprsyncr.product.service;
 
 import com.suprsyncr.common.exception.ResourceNotFoundException;
 import com.suprsyncr.common.exception.ValidationException;

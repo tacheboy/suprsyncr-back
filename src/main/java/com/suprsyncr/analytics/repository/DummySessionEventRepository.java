@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.repository;
+package com.suprsyncr.analytics.repository;
 
 import com.suprsyncr.analytics.domain.DummySessionEvent;
 import org.springframework.data.jpa.repository.JpaRepository;

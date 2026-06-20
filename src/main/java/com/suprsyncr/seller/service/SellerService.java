@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.service;
+package com.suprsyncr.seller.service;
 
 import com.suprsyncr.seller.dto.*;
 

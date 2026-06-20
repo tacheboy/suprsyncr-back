@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.domain;
+package com.suprsyncr.analytics.domain;
 
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;

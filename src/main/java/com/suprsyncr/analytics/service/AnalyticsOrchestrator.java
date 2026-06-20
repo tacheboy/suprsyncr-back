@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.service;
+package com.suprsyncr.analytics.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.suprsyncr.analytics.domain.AnalyticsSnapshot;

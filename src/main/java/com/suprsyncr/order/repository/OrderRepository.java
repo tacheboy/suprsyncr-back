@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.order.repository;
+package com.suprsyncr.order.repository;
 
 import com.suprsyncr.order.entity.Order;
 import com.suprsyncr.order.entity.OrderStatus;

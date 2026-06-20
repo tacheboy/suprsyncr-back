@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.repository;
+package com.suprsyncr.inventory.repository;
 
 import com.suprsyncr.inventory.entity.Inventory;
 import jakarta.persistence.LockModeType;

@@ -1,3 +1,7 @@
+./src/main/resources/application-dev.yml
+src/main/resources/application-dev.yml
+src/main/resources/application-prod.yml
+
 # Maven
 target/
 pom.xml.tag
@@ -8,6 +12,7 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
+./mvn/*
 # .mvn/wrapper/maven-wrapper.jar
 
 # Spring Boot
@@ -55,4 +60,3 @@ logs/
 build/
 out/
 
-src/resources/application-dev.yml

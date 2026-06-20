@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.dto;
+package com.suprsyncr.seller.dto;
 
 import com.suprsyncr.seller.entity.SellerStatus;
 

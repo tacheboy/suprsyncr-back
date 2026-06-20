@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.listing.dto;
+package com.suprsyncr.listing.dto;
 
 import java.time.LocalDateTime;
 

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.dto;
+package com.suprsyncr.inventory.dto;
 
 /**
  * DTO for inventory information.

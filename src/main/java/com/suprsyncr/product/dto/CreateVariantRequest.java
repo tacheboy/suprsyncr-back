@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.dto;
+package com.suprsyncr.product.dto;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;

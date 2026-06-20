@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.common.config;
+package com.suprsyncr.common.config;
 
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;

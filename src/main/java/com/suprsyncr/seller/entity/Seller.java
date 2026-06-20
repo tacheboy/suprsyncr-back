@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.entity;
+package com.suprsyncr.seller.entity;
 
 import com.suprsyncr.auth.entity.User;
 import com.suprsyncr.common.entity.BaseEntity;

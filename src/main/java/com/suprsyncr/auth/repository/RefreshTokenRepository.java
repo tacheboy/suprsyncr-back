@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.repository;
+package com.suprsyncr.auth.repository;
 
 import com.suprsyncr.auth.entity.RefreshToken;
 import com.suprsyncr.auth.entity.User;

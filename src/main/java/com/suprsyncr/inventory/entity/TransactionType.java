@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.entity;
+package com.suprsyncr.inventory.entity;
 
 /**
  * Enum representing types of inventory transactions.

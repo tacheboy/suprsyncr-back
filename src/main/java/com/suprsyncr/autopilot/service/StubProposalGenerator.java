@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.autopilot.service;
+package com.suprsyncr.autopilot.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.suprsyncr.analytics.dto.ProductHealthResponse;

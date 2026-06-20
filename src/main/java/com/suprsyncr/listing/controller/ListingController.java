@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.listing.controller;
+package com.suprsyncr.listing.controller;
 
 import com.suprsyncr.common.dto.ApiResponse;
 import com.suprsyncr.listing.dto.BulkListingResponse;

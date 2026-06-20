@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.listing.service;
+package com.suprsyncr.listing.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

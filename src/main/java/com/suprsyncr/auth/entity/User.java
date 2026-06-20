@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.entity;
+package com.suprsyncr.auth.entity;
 
 import com.suprsyncr.common.entity.BaseEntity;
 import jakarta.persistence.*;

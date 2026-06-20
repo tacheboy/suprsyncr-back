@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.context;
+package com.suprsyncr.ai.context;
 
 import com.suprsyncr.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;

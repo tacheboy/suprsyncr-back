@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.entity;
+package com.suprsyncr.auth.entity;
 
 public enum UserRole {
     SELLER,

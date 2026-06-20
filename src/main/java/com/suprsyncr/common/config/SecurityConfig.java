@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.common.config;
+package com.suprsyncr.common.config;
 
 import com.suprsyncr.common.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;

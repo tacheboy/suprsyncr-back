@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.controller;
+package com.suprsyncr.inventory.controller;
 
 import com.suprsyncr.common.dto.ApiResponse;
 import com.suprsyncr.inventory.dto.InventoryDto;

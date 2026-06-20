@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.common.entity;
+package com.suprsyncr.common.entity;
 
 import jakarta.persistence.*;
 import org.springframework.data.annotation.CreatedDate;

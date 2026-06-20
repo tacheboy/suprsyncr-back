@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.order.scheduler;
+package com.suprsyncr.order.scheduler;
 
 import com.suprsyncr.integration.connector.ConnectorRegistry;
 import com.suprsyncr.integration.connector.ExternalOrder;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.dto;
+package com.suprsyncr.inventory.dto;
 
 import com.suprsyncr.inventory.entity.TransactionType;
 import java.time.LocalDateTime;

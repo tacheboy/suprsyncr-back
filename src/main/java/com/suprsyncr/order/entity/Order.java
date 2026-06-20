@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.order.entity;
+package com.suprsyncr.order.entity;
 
 import com.suprsyncr.common.entity.BaseEntity;
 import com.suprsyncr.seller.entity.Seller;

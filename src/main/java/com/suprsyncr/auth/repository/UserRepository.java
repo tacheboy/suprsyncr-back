@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.repository;
+package com.suprsyncr.auth.repository;
 
 import com.suprsyncr.auth.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.auth.controller;
+package com.suprsyncr.auth.controller;
 
 import com.suprsyncr.auth.dto.*;
 import com.suprsyncr.auth.entity.User;

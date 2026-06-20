@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.order.dto;
+package com.suprsyncr.order.dto;
 
 import com.suprsyncr.order.entity.EventTrigger;
 import com.suprsyncr.order.entity.OrderStatus;

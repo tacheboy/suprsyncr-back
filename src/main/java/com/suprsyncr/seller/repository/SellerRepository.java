@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.repository;
+package com.suprsyncr.seller.repository;
 
 import com.suprsyncr.seller.entity.Seller;
 import org.springframework.data.jpa.repository.JpaRepository;

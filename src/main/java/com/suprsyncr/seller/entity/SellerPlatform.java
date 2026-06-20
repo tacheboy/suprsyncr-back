@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.entity;
+package com.suprsyncr.seller.entity;
 
 import com.suprsyncr.common.entity.BaseEntity;
 import jakarta.persistence.*;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.analytics.repository;
+package com.suprsyncr.analytics.repository;
 
 import com.suprsyncr.analytics.domain.AnalyticsSnapshot;
 import com.suprsyncr.analytics.domain.AnalyticsSnapshot.SnapshotType;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.common.exception;
+package com.suprsyncr.common.exception;
 
 import com.suprsyncr.seller.entity.PlatformType;
 

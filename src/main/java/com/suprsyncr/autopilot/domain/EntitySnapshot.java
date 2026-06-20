@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.autopilot.domain;
+package com.suprsyncr.autopilot.domain;
 
 import jakarta.persistence.*;
 import lombok.*;

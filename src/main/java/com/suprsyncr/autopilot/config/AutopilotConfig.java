@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.autopilot.config;
+package com.suprsyncr.autopilot.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

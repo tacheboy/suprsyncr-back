@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.dto;
+package com.suprsyncr.ai.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.order.dto;
+package com.suprsyncr.order.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

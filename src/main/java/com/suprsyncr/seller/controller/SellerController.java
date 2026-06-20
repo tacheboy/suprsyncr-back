@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.controller;
+package com.suprsyncr.seller.controller;
 
 import com.suprsyncr.common.dto.ApiResponse;
 import com.suprsyncr.seller.dto.*;

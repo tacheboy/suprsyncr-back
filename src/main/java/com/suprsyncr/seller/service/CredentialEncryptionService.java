@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.seller.service;
+package com.suprsyncr.seller.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

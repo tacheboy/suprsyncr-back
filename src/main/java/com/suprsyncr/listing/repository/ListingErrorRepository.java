@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.listing.repository;
+package com.suprsyncr.listing.repository;
 
 import com.suprsyncr.listing.entity.ListingError;
 import org.springframework.data.jpa.repository.JpaRepository;

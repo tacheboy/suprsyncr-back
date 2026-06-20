@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.repository;
+package com.suprsyncr.inventory.repository;
 
 import com.suprsyncr.inventory.entity.InventoryTransaction;
 import org.springframework.data.domain.Page;

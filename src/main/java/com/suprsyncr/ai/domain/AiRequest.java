@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.domain;
+package com.suprsyncr.ai.domain;
 
 import jakarta.persistence.*;
 import lombok.*;

@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.ai.exception;
+package com.suprsyncr.ai.exception;
 
 public class AiException extends RuntimeException {
     public AiException(String message) {

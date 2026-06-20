@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.product.dto;
+package com.suprsyncr.product.dto;
 
 import com.suprsyncr.product.entity.ProductStatus;
 

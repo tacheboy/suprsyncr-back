@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.inventory.service;
+package com.suprsyncr.inventory.service;
 
 import com.suprsyncr.common.exception.InsufficientStockException;
 import com.suprsyncr.common.exception.ResourceNotFoundException;

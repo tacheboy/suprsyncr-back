@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.listing.service;
+package com.suprsyncr.listing.service;
 
 import com.suprsyncr.listing.dto.BulkListingResponse;
 import com.suprsyncr.listing.dto.CreateListingRequest;

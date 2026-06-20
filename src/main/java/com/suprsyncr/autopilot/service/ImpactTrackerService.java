@@ -1,4 +1,4 @@
-﻿package com.suprsyncr.autopilot.service;
+package com.suprsyncr.autopilot.service;
 
 import com.suprsyncr.autopilot.domain.ChangeImpact;
 import com.suprsyncr.autopilot.domain.ProposedChangeEntity;
