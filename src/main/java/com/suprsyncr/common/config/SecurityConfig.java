@@ -64,12 +64,17 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/v1/auth/**",
                     "/api/v1/webhooks/**",
+                    // Shopify OAuth: the popup tab opens this URL directly and cannot
+                    // carry an Authorization header, so it must be public. The
+                    // controller authenticates by validating the ?token=<jwt> query
+                    // parameter the frontend appends.
+                    "/api/v1/shopify/auth",
                     "/shopify/callback",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
                     "/actuator/health",
                     "/api/v1/test/**",
-                    // Analytics module â€” dummy data (dev profile only) + analytics read API
+                    // Analytics module — dummy data (dev profile only) + analytics read API
                     "/api/dummy/**",
                     "/api/analytics/**",
                     "/api/autopilot/**"

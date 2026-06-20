@@ -1,6 +1,7 @@
 package com.suprsyncr.seller.controller;
 
 import com.suprsyncr.common.dto.ApiResponse;
+import com.suprsyncr.integration.shopify.ShopifyCatalogueSyncService;
 import com.suprsyncr.seller.dto.*;
 import com.suprsyncr.seller.service.SellerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,9 +26,12 @@ import java.util.List;
 public class SellerController {
     
     private final SellerService sellerService;
-    
-    public SellerController(SellerService sellerService) {
+    private final ShopifyCatalogueSyncService catalogueSyncService;
+
+    public SellerController(SellerService sellerService,
+                            ShopifyCatalogueSyncService catalogueSyncService) {
         this.sellerService = sellerService;
+        this.catalogueSyncService = catalogueSyncService;
     }
     
     @PostMapping
@@ -199,6 +203,25 @@ public class SellerController {
     public ResponseEntity<ApiResponse<PlatformConnectionDto>> testConnection(@PathVariable Long platformId) {
         PlatformConnectionDto platform = sellerService.testConnection(platformId);
         return ResponseEntity.ok(new ApiResponse<>(true, platform, "Connection test completed", LocalDateTime.now()));
+    }
+
+    /**
+     * Pulls the connected platform's catalogue and upserts it into the local
+     * products table. Currently implemented for Shopify; safe to re-run.
+     */
+    @PostMapping("/platforms/{platformId}/sync")
+    @Operation(summary = "Sync catalogue from a connected platform")
+    public ResponseEntity<ApiResponse<ShopifyCatalogueSyncService.SyncResult>> syncCatalogue(
+            @PathVariable Long platformId) {
+        ShopifyCatalogueSyncService.SyncResult result = catalogueSyncService.syncCatalogue(platformId);
+        if (!result.ok()) {
+            return ResponseEntity.badRequest().body(
+                    new ApiResponse<>(false, result, result.error(), LocalDateTime.now()));
+        }
+        String msg = "Synced " + result.productsUpserted() + " product(s), "
+                + result.variantsUpserted() + " variant(s) from "
+                + result.productsFetched() + " fetched.";
+        return ResponseEntity.ok(new ApiResponse<>(true, result, msg, LocalDateTime.now()));
     }
 }
 

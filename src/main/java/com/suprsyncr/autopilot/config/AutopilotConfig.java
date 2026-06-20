@@ -1,11 +1,13 @@
 package com.suprsyncr.autopilot.config;
 
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.concurrent.Executor;
 
 /**
@@ -18,8 +20,13 @@ import java.util.concurrent.Executor;
 public class AutopilotConfig {
 
     @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
+    public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        // Engine runs make several LLM calls; allow a generous read timeout but
+        // bound the connect so an unreachable engine fails fast to the stub path.
+        return builder
+                .setConnectTimeout(Duration.ofSeconds(10))
+                .setReadTimeout(Duration.ofSeconds(180))
+                .build();
     }
 
     /**

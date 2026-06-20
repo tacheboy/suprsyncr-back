@@ -194,6 +194,67 @@ public class ShopifyConnector implements MarketplaceConnector {
         }
     }
     
+    /**
+     * Fetch the full Shopify product catalogue, following Link-header pagination
+     * (Shopify Admin REST switched from page=N to since_id/cursor-based; we use
+     * the {@code Link: <…>; rel="next"} header). Each page caps at 250 products.
+     * Returns the raw product JsonNode list so the caller can map fields against
+     * the local Product / ProductVariant / image entities without losing
+     * Shopify-specific bits (e.g. variant ids, image src).
+     */
+    public List<JsonNode> fetchProducts(Map<String, String> credentials) {
+        String shopUrl = credentials.get("shop_url");
+        String accessToken = credentials.get("access_token");
+        if (shopUrl == null || accessToken == null) {
+            throw new MarketplaceApiException("SHOPIFY", null, "Missing shop_url or access_token");
+        }
+        log.info("Fetching Shopify product catalogue from shop: {}", shopUrl);
+
+        List<JsonNode> all = new ArrayList<>();
+        String nextUrl = String.format("https://%s/admin/api/%s/products.json?limit=250", shopUrl, API_VERSION);
+        int safetyLimit = 40; // cap at ~10k products to avoid runaway loops
+
+        while (nextUrl != null && safetyLimit-- > 0) {
+            Request request = new Request.Builder()
+                    .url(nextUrl)
+                    .header("X-Shopify-Access-Token", accessToken)
+                    .get()
+                    .build();
+            try (Response response = httpClient.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    String errorBody = response.body() != null ? response.body().string() : "no body";
+                    throw new MarketplaceApiException("SHOPIFY", response.code(),
+                            "Failed to fetch Shopify products: " + errorBody);
+                }
+                JsonNode root = objectMapper.readTree(response.body().string());
+                JsonNode products = root.path("products");
+                if (products.isArray()) {
+                    products.forEach(all::add);
+                }
+                nextUrl = parseNextLink(response.header("Link"));
+            } catch (IOException e) {
+                throw new MarketplaceApiException("SHOPIFY", null,
+                        "Error fetching Shopify products: " + e.getMessage(), e);
+            }
+        }
+
+        log.info("Fetched {} Shopify products from shop: {}", all.size(), shopUrl);
+        return all;
+    }
+
+    /** Extract the {@code <next-url>; rel="next"} entry from a Shopify Link header. */
+    private String parseNextLink(String linkHeader) {
+        if (linkHeader == null || linkHeader.isBlank()) return null;
+        // Format: <https://…?page_info=abc&limit=250>; rel="next", <…>; rel="previous"
+        for (String part : linkHeader.split(",")) {
+            if (part.contains("rel=\"next\"")) {
+                int lt = part.indexOf('<'), gt = part.indexOf('>');
+                if (lt >= 0 && gt > lt) return part.substring(lt + 1, gt);
+            }
+        }
+        return null;
+    }
+
     @Override
     public List<ExternalOrder> fetchOrders(Map<String, String> credentials, LocalDateTime since) {
         String shopUrl = credentials.get("shop_url");

@@ -1,5 +1,7 @@
 package com.suprsyncr.order.scheduler;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.suprsyncr.integration.connector.ConnectorRegistry;
 import com.suprsyncr.integration.connector.ExternalOrder;
 import com.suprsyncr.integration.connector.MarketplaceConnector;
@@ -39,19 +41,22 @@ public class OrderPollScheduler {
     private final OrderService orderService;
     private final CredentialEncryptionService credentialEncryptionService;
     private final ConnectorFailureRepository connectorFailureRepository;
-    
+    private final ObjectMapper objectMapper;
+
     public OrderPollScheduler(
         SellerPlatformRepository sellerPlatformRepository,
         ConnectorRegistry connectorRegistry,
         OrderService orderService,
         CredentialEncryptionService credentialEncryptionService,
-        ConnectorFailureRepository connectorFailureRepository
+        ConnectorFailureRepository connectorFailureRepository,
+        ObjectMapper objectMapper
     ) {
         this.sellerPlatformRepository = sellerPlatformRepository;
         this.connectorRegistry = connectorRegistry;
         this.orderService = orderService;
         this.credentialEncryptionService = credentialEncryptionService;
         this.connectorFailureRepository = connectorFailureRepository;
+        this.objectMapper = objectMapper;
     }
     
     /**
@@ -182,16 +187,13 @@ public class OrderPollScheduler {
         return sb.toString();
     }
     
-    /**
-     * Parses JSON credentials string to map.
-     * This is a simplified implementation - in production use Jackson or Gson.
-     */
     private Map<String, String> parseCredentials(String credentialsJson) {
-        // Placeholder implementation
-        // In production, this would use proper JSON parsing
-        Map<String, String> credentials = new HashMap<>();
-        // The actual implementation would parse the JSON string
-        return credentials;
+        try {
+            return objectMapper.readValue(credentialsJson, new TypeReference<Map<String, String>>() {});
+        } catch (Exception e) {
+            logger.error("Failed to parse platform credentials JSON: {}", e.getMessage());
+            return new HashMap<>();
+        }
     }
 }
 

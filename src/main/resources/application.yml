@@ -130,6 +130,10 @@ autopilot:
   agent-service-url: ${AGENT_SERVICE_URL:http://localhost:8081}
   enabled: true
   daily-run-enabled: false
+  # Inference Engine (Python :8081) — primary cognition path; stub is fallback only.
+  engine:
+    enabled: ${AUTOPILOT_ENGINE_ENABLED:true}
+    budget-inr: ${AUTOPILOT_ENGINE_BUDGET_INR:5.0}
 
 # Server Configuration
 server:

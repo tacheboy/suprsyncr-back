@@ -3,6 +3,7 @@ package com.suprsyncr.autopilot.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.suprsyncr.autopilot.domain.ChangeImpact;
 import com.suprsyncr.autopilot.domain.EntitySnapshot;
 import com.suprsyncr.autopilot.domain.ProposedChangeEntity;
 import com.suprsyncr.autopilot.repository.EntitySnapshotRepository;
@@ -14,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,7 @@ public class ChangeManagementService {
     private final ShopifyConnector shopifyConnector;
     private final ShopifyCredentialResolver credentialResolver;
     private final ObjectMapper objectMapper;
+    private final com.suprsyncr.autopilot.repository.ChangeImpactRepository impactRepository;
 
     // â”€â”€â”€ Proposal Ingestion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -162,15 +166,21 @@ public class ChangeManagementService {
             throw new IllegalStateException("Change is not approved: " + change.getStatus());
         }
 
+        // Simulate apply when (a) no real Shopify is connected, OR (b) the proposal
+        // is flagged isTest — typically used for demo-bootstrapped proposals whose
+        // entity_id (e.g. pa-002 from the demo store) won't exist on the seller's
+        // real Shopify. Either way we keep the queue UX honest without hitting 404.
         boolean shopifyConnected = credentialResolver.isShopifyConnected(change.getStoreId());
+        boolean simulate = !shopifyConnected || Boolean.TRUE.equals(change.getIsTest());
 
         change.setStatus("APPLYING");
         changeRepository.save(change);
-        log.info("Applying change {} (type: {}, entity: {}, shopify={})",
-                changeId, change.getChangeType(), change.getShopifyEntityId(), shopifyConnected);
+        log.info("Applying change {} (type: {}, entity: {}, shopify={}, isTest={})",
+                changeId, change.getChangeType(), change.getShopifyEntityId(),
+                shopifyConnected, change.getIsTest());
 
         try {
-            if (!shopifyConnected) {
+            if (simulate) {
                 // Demo / non-Shopify store: simulate the write locally so the approval
                 // queue and Impact Lab work end-to-end without a live storefront. A real
                 // store would push to Shopify below.
@@ -183,8 +193,9 @@ public class ChangeManagementService {
                 change.setAppliedAt(LocalDateTime.now());
                 change.setRollbackAvailableUntil(LocalDateTime.now().plusDays(30));
                 changeRepository.save(change);
-                log.info("Change {} applied (simulated — no connected Shopify store for storeId {})",
-                        changeId, change.getStoreId());
+                writeChangeImpactSimulated(change);
+                log.info("Change {} applied (simulated — storeId {}, isTest {})",
+                        changeId, change.getStoreId(), change.getIsTest());
                 return true;
             }
 
@@ -368,6 +379,47 @@ public class ChangeManagementService {
             case "META_DESCRIPTION" -> "metafields_global_description_tag";
             default -> "unknown";
         };
+    }
+
+    /**
+     * For simulated applies, write an Impact Lab row using the agent's predicted
+     * uplift as a credible "measured" value. This keeps the demo Impact Lab
+     * populated; the real measurePendingImpact path will overwrite/extend this
+     * with attribution data once a 7-day window has elapsed against real signal.
+     */
+    private void writeChangeImpactSimulated(ProposedChangeEntity change) {
+        try {
+            BigDecimal predicted = BigDecimal.ZERO;
+            if (change.getEstimatedImpact() != null) {
+                JsonNode impactNode = objectMapper.readTree(change.getEstimatedImpact());
+                if (impactNode.has("revenue_lift_inr")) {
+                    predicted = BigDecimal.valueOf(impactNode.path("revenue_lift_inr").asDouble(0));
+                }
+            }
+            ChangeImpact impact = ChangeImpact.builder()
+                    .impactId(UUID.randomUUID())
+                    .changeId(change.getChangeId())
+                    .storeId(change.getStoreId())
+                    .metricType("CVR_SIMULATED")
+                    .baselinePeriodStart(LocalDate.now().minusDays(7))
+                    .baselinePeriodEnd(LocalDate.now())
+                    .baselineValue(BigDecimal.ZERO)
+                    .measurementPeriodStart(LocalDate.now())
+                    .measurementPeriodEnd(LocalDate.now().plusDays(7))
+                    .measuredValue(predicted)
+                    .deltaAbsolute(predicted)
+                    .deltaPercent(BigDecimal.ZERO)
+                    .attributionConfidence("LOW")
+                    .attributionNotes("Simulated apply — predicted impact used as proxy until real 7-day window measures actual lift.")
+                    .estimatedRevenueImpactInr(predicted)
+                    .build();
+            impactRepository.save(impact);
+            log.info("Simulated change_impact row written for change {} (predicted ₹{})",
+                    change.getChangeId(), predicted);
+        } catch (Exception e) {
+            log.warn("Could not write simulated change_impact for change {}: {}",
+                    change.getChangeId(), e.getMessage());
+        }
     }
 }
 

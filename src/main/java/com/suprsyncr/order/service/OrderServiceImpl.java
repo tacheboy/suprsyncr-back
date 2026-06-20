@@ -1,5 +1,7 @@
 package com.suprsyncr.order.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.suprsyncr.auth.entity.User;
 import com.suprsyncr.auth.service.AuthService;
 import com.suprsyncr.common.exception.InsufficientStockException;
@@ -65,7 +67,8 @@ public class OrderServiceImpl implements OrderService {
     private final ConnectorFailureRepository connectorFailureRepository;
     private final CredentialEncryptionService credentialEncryptionService;
     private final AuthService authService;
-    
+    private final ObjectMapper objectMapper;
+
     public OrderServiceImpl(
         OrderRepository orderRepository,
         OrderEventRepository orderEventRepository,
@@ -77,7 +80,8 @@ public class OrderServiceImpl implements OrderService {
         ConnectorRegistry connectorRegistry,
         ConnectorFailureRepository connectorFailureRepository,
         CredentialEncryptionService credentialEncryptionService,
-        AuthService authService
+        AuthService authService,
+        ObjectMapper objectMapper
     ) {
         this.orderRepository = orderRepository;
         this.orderEventRepository = orderEventRepository;
@@ -90,6 +94,7 @@ public class OrderServiceImpl implements OrderService {
         this.connectorFailureRepository = connectorFailureRepository;
         this.credentialEncryptionService = credentialEncryptionService;
         this.authService = authService;
+        this.objectMapper = objectMapper;
     }
     
     @Override
@@ -153,22 +158,36 @@ public class OrderServiceImpl implements OrderService {
     public OrderStatsDto getOrderStats(LocalDateTime startDate, LocalDateTime endDate) {
         User currentUser = authService.getCurrentUser();
         Seller seller = findSellerByUser(currentUser);
-        
+
         Map<String, Object> stats = orderRepository.calculateOrderStatistics(
             seller.getId(),
             startDate,
             endDate
         );
-        
+
+        if (stats == null) {
+            return new OrderStatsDto(0L, 0L, 0L, 0L, 0L, 0L, BigDecimal.ZERO);
+        }
+
         return new OrderStatsDto(
-            ((Number) stats.get("totalOrders")).longValue(),
-            ((Number) stats.get("pendingOrders")).longValue(),
-            ((Number) stats.get("acceptedOrders")).longValue(),
-            ((Number) stats.get("shippedOrders")).longValue(),
-            ((Number) stats.get("deliveredOrders")).longValue(),
-            ((Number) stats.get("cancelledOrders")).longValue(),
-            (BigDecimal) stats.get("totalRevenue")
+            toLong(stats.get("totalOrders")),
+            toLong(stats.get("pendingOrders")),
+            toLong(stats.get("acceptedOrders")),
+            toLong(stats.get("shippedOrders")),
+            toLong(stats.get("deliveredOrders")),
+            toLong(stats.get("cancelledOrders")),
+            toBigDecimal(stats.get("totalRevenue"))
         );
+    }
+
+    private static Long toLong(Object v) {
+        return v instanceof Number n ? n.longValue() : 0L;
+    }
+
+    private static BigDecimal toBigDecimal(Object v) {
+        if (v instanceof BigDecimal bd) return bd;
+        if (v instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
+        return BigDecimal.ZERO;
     }
     
     @Override
@@ -531,10 +550,12 @@ public class OrderServiceImpl implements OrderService {
     }
     
     private Map<String, String> parseCredentials(String credentialsJson) {
-        // Simple JSON parsing - in production use Jackson or Gson
-        Map<String, String> credentials = new HashMap<>();
-        // This is a placeholder - actual implementation would parse JSON
-        return credentials;
+        try {
+            return objectMapper.readValue(credentialsJson, new TypeReference<Map<String, String>>() {});
+        } catch (Exception e) {
+            logger.error("Failed to parse platform credentials JSON: {}", e.getMessage());
+            return new HashMap<>();
+        }
     }
     
     private OrderDto mapToDto(Order order) {

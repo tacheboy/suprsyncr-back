@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.suprsyncr.auth.entity.User;
 import com.suprsyncr.auth.service.AuthService;
+import com.suprsyncr.autopilot.domain.AgentRun;
+import com.suprsyncr.autopilot.service.AgentRunOrchestratorService;
 import com.suprsyncr.seller.entity.*;
 import com.suprsyncr.seller.repository.SellerPlatformRepository;
 import com.suprsyncr.seller.repository.SellerRepository;
@@ -11,6 +13,7 @@ import com.suprsyncr.seller.service.CredentialEncryptionService;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +42,8 @@ public class ShopifyOAuthService {
     private final SellerPlatformRepository platformRepository;
     private final CredentialEncryptionService encryptionService;
     private final AuthService authService;
+    private final AgentRunOrchestratorService autopilotOrchestrator;
+    private final ShopifyCatalogueSyncService catalogueSyncService;
 
     // In-memory state store for OAuth CSRF protection.
     // Key: state nonce, Value: OAuthStateEntry (shop + sellerId + timestamp)
@@ -51,13 +56,17 @@ public class ShopifyOAuthService {
             SellerRepository sellerRepository,
             SellerPlatformRepository platformRepository,
             CredentialEncryptionService encryptionService,
-            AuthService authService) {
+            AuthService authService,
+            @Lazy AgentRunOrchestratorService autopilotOrchestrator,
+            ShopifyCatalogueSyncService catalogueSyncService) {
         this.config = config;
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.sellerRepository = sellerRepository;
         this.platformRepository = platformRepository;
         this.encryptionService = encryptionService;
+        this.autopilotOrchestrator = autopilotOrchestrator;
+        this.catalogueSyncService = catalogueSyncService;
         this.authService = authService;
     }
 
@@ -238,8 +247,42 @@ public class ShopifyOAuthService {
         platform.setExternalStoreId(shop);
         platform.setLastSyncError(null);
 
-        platformRepository.save(platform);
+        SellerPlatform saved = platformRepository.save(platform);
         log.info("Shopify connection saved successfully for seller: {}, shop: {}", sellerId, shop);
+
+        // Import the seller's Shopify catalogue into the local products table BEFORE
+        // triggering autopilot. The OAuth handshake already has the access token
+        // and read_products scope, so this is the right moment to seed real data
+        // — without it the Products UI, the analytics evidence and the agent's
+        // apply path all run against an empty (or demo-bootstrapped) catalogue.
+        // Wrapped in try/catch so a Shopify rate-limit or transient error never
+        // breaks the OAuth callback.
+        try {
+            ShopifyCatalogueSyncService.SyncResult syncResult =
+                    catalogueSyncService.syncCatalogue(saved.getId());
+            if (syncResult.ok()) {
+                log.info("Initial Shopify catalogue sync for platform {}: {} products / {} variants from {} fetched",
+                        saved.getId(), syncResult.productsUpserted(),
+                        syncResult.variantsUpserted(), syncResult.productsFetched());
+            } else {
+                log.warn("Initial Shopify catalogue sync for platform {} failed: {}",
+                        saved.getId(), syncResult.error());
+            }
+        } catch (Exception e) {
+            log.warn("Catalogue sync failed for seller {} after OAuth: {}", sellerId, e.getMessage());
+        }
+
+        // Kick off a first autopilot run so the Approval Queue / Impact Lab have
+        // real AI-generated content immediately. Async; this returns fast. When
+        // the catalogue sync above pulled real products, the engine reasons over
+        // those; otherwise the orchestrator's bootstrap fallback kicks in.
+        try {
+            AgentRun run = autopilotOrchestrator.startRun(String.valueOf(saved.getId()), "WEBHOOK");
+            autopilotOrchestrator.executeRunAsync(run);
+            log.info("Triggered first autopilot run {} for newly connected store {}", run.getRunId(), saved.getId());
+        } catch (Exception e) {
+            log.warn("Failed to trigger initial autopilot run for seller {}: {}", sellerId, e.getMessage());
+        }
     }
 
     private String generateSecureState() {

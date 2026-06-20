@@ -92,6 +92,25 @@ public class ProposedChangeEntity {
     @Column(name = "test_revert_condition")
     private String testRevertCondition;
 
+    // --- Inference-engine provenance (V13) ---
+
+    /** JSON array of evidence ids this proposal is grounded in. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "evidence_ids")
+    private String evidenceIds;
+
+    /** Models the router used, e.g. "qwen3.6-27b→gpt-4o" or "deterministic". */
+    @Column(name = "model_path")
+    private String modelPath;
+
+    /** Rupee cost to produce this proposal. */
+    @Column(name = "cost_inr")
+    private java.math.BigDecimal costInr;
+
+    /** Engine confidence in this proposal (0..1). */
+    @Column(name = "confidence")
+    private java.math.BigDecimal confidence;
+
     @PrePersist
     public void prePersist() {
         if (changeId == null) changeId = UUID.randomUUID();

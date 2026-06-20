@@ -8,13 +8,19 @@ import com.suprsyncr.analytics.service.AnalyticsOrchestrator;
 import com.suprsyncr.autopilot.domain.AgentRun;
 import com.suprsyncr.autopilot.domain.ProposedChangeEntity;
 import com.suprsyncr.autopilot.repository.AgentRunRepository;
+import com.suprsyncr.product.entity.Product;
+import com.suprsyncr.product.repository.ProductRepository;
+import com.suprsyncr.seller.entity.SellerPlatform;
+import com.suprsyncr.seller.repository.SellerPlatformRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +47,14 @@ public class AgentRunOrchestratorService {
     private final AgentRunRepository agentRunRepository;
     private final ChangeManagementService changeManagementService;
     private final StubProposalGenerator stubProposalGenerator;
+    private final EngineRunService engineRunService;
+    private final ProductRepository productRepository;
+    private final SellerPlatformRepository platformRepository;
     private final ObjectMapper objectMapper;
+
+    /** When true, runs go through the Python Inference Engine; stub is fallback only. */
+    @Value("${autopilot.engine.enabled:true}")
+    private boolean engineEnabled;
 
     /**
      * Trigger a full agent run for a store.
@@ -107,10 +120,14 @@ public class AgentRunOrchestratorService {
                 }
             }
             
-            String pythonRunId = agentCommunicationService.triggerAgentRun(
-                    run.getRunId().toString(), run.getStoreId(), context, agents, productOverrides);
-            if (pythonRunId == null) {
-                log.warn("Python Agent Service unavailable â€” falling back to stub proposals for run {}", run.getRunId());
+            // Primary path: the Python Inference Engine (supervisor → router → agents),
+            // which returns grounded proposals + full cost/telemetry that we persist.
+            boolean engineOk = false;
+            if (engineEnabled) {
+                engineOk = engineRunService.runAndPersist(run, context);
+            }
+            if (!engineOk) {
+                log.warn("Inference Engine unavailable/failed â€” falling back to stub proposals for run {}", run.getRunId());
                 generateAndPersistStubProposals(run, context, agents);
             }
         } catch (Exception e) {
@@ -156,8 +173,113 @@ public class AgentRunOrchestratorService {
     /**
      * Build the full analytics context payload from pre-computed snapshots.
      * This is the "perception layer" that agents see.
+     *
+     * <p>For a freshly-connected real store there are no orders, no funnel data
+     * and no analytics snapshot — handing that empty context to the inference
+     * engine would yield zero proposals and an empty Approval Queue. While the
+     * real Shopify sync is still being built out, we fall back to a known good
+     * demo store ({@code DEMO_FALLBACK_STORE_ID}) for any storeId that hasn't
+     * accumulated its own data yet. Proposals are still persisted under the
+     * caller's actual storeId, so the user sees them in their queue.
      */
+    private static final String DEMO_FALLBACK_STORE_ID = "store-a";
+
     private Map<String, Object> buildAnalyticsContext(String storeId) {
+        // 1. Real analytics snapshot for this storeId (preferred path).
+        Map<String, Object> context = buildAnalyticsContextFor(storeId);
+        if (isContextUsable(context)) return context;
+
+        // 2. Local catalogue evidence: if a numeric storeId maps to a SellerPlatform
+        //    whose products have been synced, build an evidence pack from those real
+        //    products. The agent then reasons over the seller's actual catalogue —
+        //    proposals reference real Shopify entity ids, so apply hits real Shopify.
+        Map<String, Object> localCtx = buildEvidenceFromLocalCatalogue(storeId);
+        if (isContextUsable(localCtx)) {
+            log.info("Analytics snapshot empty for store {} — using local synced catalogue as evidence", storeId);
+            return localCtx;
+        }
+
+        // 3. Last resort: demo store. The seller sees the engine running, but
+        //    the resulting proposals are isTest (entity ids don't exist on their
+        //    real storefront), so apply will simulate.
+        if (!DEMO_FALLBACK_STORE_ID.equals(storeId)) {
+            log.info("No local catalogue for store {} either — bootstrapping evidence pack from {}",
+                    storeId, DEMO_FALLBACK_STORE_ID);
+            return buildAnalyticsContextFor(DEMO_FALLBACK_STORE_ID);
+        }
+        return context;
+    }
+
+    /**
+     * Synthesise a product_health evidence section from the seller's locally-
+     * synced Shopify products. Funnel signals (traffic, cvr, abandonment) require
+     * order history we don't have yet, so we mark them with placeholder values
+     * that flag every product as a LISTING_PROBLEM candidate — the legitimate
+     * conservative guess for a freshly-synced catalogue where nothing has been
+     * optimised yet. When orders sync lands these placeholders go away.
+     */
+    private Map<String, Object> buildEvidenceFromLocalCatalogue(String storeId) {
+        Long platformId;
+        try { platformId = Long.parseLong(storeId.trim()); }
+        catch (Exception e) { return Map.of(); }
+
+        SellerPlatform platform = platformRepository.findById(platformId).orElse(null);
+        if (platform == null || platform.getSeller() == null) return Map.of();
+
+        // Page through up to 50 products — enough for the planner to triage.
+        List<Product> products = productRepository.findProducts(
+                platform.getSeller().getId(), null, null, null,
+                org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
+        if (products.isEmpty()) return Map.of();
+
+        List<Map<String, Object>> phRows = new ArrayList<>();
+        for (Product p : products) {
+            Map<String, Object> row = new HashMap<>();
+            // Use the Shopify product id (from the sku we stored: "shopify-<id>") so
+            // the agent's proposals target the real Shopify entity.
+            String externalId = p.getSku() != null && p.getSku().startsWith("shopify-")
+                    ? p.getSku().substring("shopify-".length())
+                    : String.valueOf(p.getId());
+            row.put("productId", externalId);
+            row.put("name", p.getName());
+            row.put("description", p.getDescription() == null ? "" : p.getDescription());
+            row.put("category", p.getCategory() != null ? p.getCategory().getName() : "Uncategorised");
+            row.put("price", p.getBasePrice() != null ? p.getBasePrice() : BigDecimal.ZERO);
+            row.put("aov", p.getBasePrice() != null ? p.getBasePrice() : BigDecimal.ZERO);
+            // Placeholder funnel signals — flag as LISTING_PROBLEM so the agent
+            // considers a rewrite. Replaced with real funnel once orders sync.
+            row.put("traffic", 400);
+            row.put("pageViews", 400);
+            row.put("cvr", 1.2);
+            row.put("conversionRate", 1.2);
+            row.put("quadrant", "LISTING_PROBLEM");
+            phRows.add(row);
+        }
+
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("product_health", Map.of(
+                "storeId", storeId,
+                "dataSource", "live_shopify_catalogue",
+                "products", phRows));
+        ctx.put("revenue_leak", Map.of());
+        ctx.put("seo_gaps", Map.of());
+        return ctx;
+    }
+
+    /**
+     * Heuristic: a context is "usable" if it has at least one product-health row
+     * to reason over. Empty/missing sections are tolerated, but a completely
+     * empty product list means the agents have nothing to act on.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean isContextUsable(Map<String, Object> context) {
+        Object ph = context.get("product_health");
+        if (!(ph instanceof Map)) return false;
+        Object products = ((Map<String, Object>) ph).get("products");
+        return products instanceof java.util.Collection && !((java.util.Collection<?>) products).isEmpty();
+    }
+
+    private Map<String, Object> buildAnalyticsContextFor(String storeId) {
         Map<String, Object> context = new HashMap<>();
 
         try {

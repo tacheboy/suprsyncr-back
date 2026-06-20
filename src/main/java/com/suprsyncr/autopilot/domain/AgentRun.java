@@ -60,6 +60,13 @@ public class AgentRun {
     @Column(name = "error_message")
     private String errorMessage;
 
+    /** Total rupee cost of the run across all model invocations (budget ledger). */
+    @Column(name = "total_cost_inr")
+    private BigDecimal totalCostInr;
+
+    @Column(name = "engine_version")
+    private String engineVersion;
+
     @PrePersist
     public void prePersist() {
         if (runId == null) runId = UUID.randomUUID();

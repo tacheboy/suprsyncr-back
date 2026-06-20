@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -84,10 +85,12 @@ public class OrderController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) PlatformType platformType,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        Page<OrderDto> orders = orderService.getOrders(page, size, status, platformType, startDate, endDate);
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
+        LocalDateTime end   = endDate   != null ? endDate.atTime(23, 59, 59) : null;
+        Page<OrderDto> orders = orderService.getOrders(page, size, status, platformType, start, end);
         PageResponse<OrderDto> pageResponse = new PageResponse<>(
                 orders.getContent(),
                 orders.getNumber(),
@@ -118,10 +121,12 @@ public class OrderController {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<ApiResponse<OrderStatsDto>> getOrderStats(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        OrderStatsDto stats = orderService.getOrderStats(startDate, endDate);
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
+        LocalDateTime end   = endDate   != null ? endDate.atTime(23, 59, 59) : null;
+        OrderStatsDto stats = orderService.getOrderStats(start, end);
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
                 stats,
