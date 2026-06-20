@@ -1,0 +1,71 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      # Production pool sizing - larger pool for production load
+      maximum-pool-size: 20
+      minimum-idle: 10
+      
+      # Connection timeout settings
+      connection-timeout: 30000  # 30 seconds
+      idle-timeout: 600000       # 10 minutes
+      max-lifetime: 1800000      # 30 minutes
+      
+      # Connection validation
+      connection-test-query: SELECT 1
+      validation-timeout: 5000   # 5 seconds
+      
+      # Leak detection disabled in production for performance
+      leak-detection-threshold: 0  # Disabled in production
+      
+      # Pool behavior
+      auto-commit: true
+      pool-name: USP-Prod-HikariPool
+      
+      # Additional production optimizations
+      register-mbeans: true  # Enable JMX monitoring
+  
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# JWT Configuration for Production (must be set via environment variables)
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 900000  # 15 minutes
+  refresh-token-expiration: 604800000  # 7 days
+
+# AWS S3 Configuration for Production
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket-name: ${S3_BUCKET_NAME}
+    endpoint: ""  # Use default AWS S3
+    access-key-id: ${AWS_ACCESS_KEY_ID}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+
+# Logging Configuration for Production
+logging:
+  level:
+    root: WARN
+    com.usp: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  file:
+    name: /var/log/usp/application.log
+    max-size: 10MB
+    max-history: 30
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+    include-exception: false

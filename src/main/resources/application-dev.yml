@@ -1,0 +1,66 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/suprsyncr_db
+    username: postgres
+    password: postgres
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-test-query: SELECT 1
+      validation-timeout: 3000
+      leak-detection-threshold: 60000
+      auto-commit: true
+      pool-name: Suprsyncr-Dev-HikariPool
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+# JWT for Development
+jwt:
+  secret: dev-secret-key-for-local-development-only-change-in-production
+
+# OpenAI for Development — set OPENAI_API_KEY in your environment or here
+suprsyncr:
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    model: gpt-4o
+    max-output-tokens: 4096
+    temperature: 0.7
+
+# AWS S3 — LocalStack for local dev
+aws:
+  region: us-east-1
+  s3:
+    bucket-name: suprsyncr-product-images
+    endpoint: http://localhost:4566
+    access-key-id: test
+    secret-access-key: test
+
+# Logging for Development
+logging:
+  file:
+    name: logs/suprsyncr.log
+  level:
+    root: INFO
+    com.suprsyncr: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.flywaydb: DEBUG
+
+# Server
+server:
+  port: 8080
