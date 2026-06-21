@@ -44,6 +44,7 @@ public class ShopifyOAuthService {
     private final AuthService authService;
     private final AgentRunOrchestratorService autopilotOrchestrator;
     private final ShopifyCatalogueSyncService catalogueSyncService;
+    private final ShopifyWebhookRegistrationService webhookRegistrationService;
 
     // In-memory state store for OAuth CSRF protection.
     // Key: state nonce, Value: OAuthStateEntry (shop + sellerId + timestamp)
@@ -58,7 +59,8 @@ public class ShopifyOAuthService {
             CredentialEncryptionService encryptionService,
             AuthService authService,
             @Lazy AgentRunOrchestratorService autopilotOrchestrator,
-            ShopifyCatalogueSyncService catalogueSyncService) {
+            ShopifyCatalogueSyncService catalogueSyncService,
+            ShopifyWebhookRegistrationService webhookRegistrationService) {
         this.config = config;
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
@@ -67,6 +69,7 @@ public class ShopifyOAuthService {
         this.encryptionService = encryptionService;
         this.autopilotOrchestrator = autopilotOrchestrator;
         this.catalogueSyncService = catalogueSyncService;
+        this.webhookRegistrationService = webhookRegistrationService;
         this.authService = authService;
     }
 
@@ -250,6 +253,10 @@ public class ShopifyOAuthService {
         SellerPlatform saved = platformRepository.save(platform);
         log.info("Shopify connection saved successfully for seller: {}, shop: {}", sellerId, shop);
 
+        // Register after persistence so a delivery can resolve this platform by shop domain.
+        // Failure is non-fatal: the connected store remains usable and the operator gets a clear log.
+        webhookRegistrationService.registerOrderWebhooks(saved);
+
         // Import the seller's Shopify catalogue into the local products table BEFORE
         // triggering autopilot. The OAuth handshake already has the access token
         // and read_products scope, so this is the right moment to seed real data
@@ -313,6 +320,35 @@ public class ShopifyOAuthService {
             result |= a.charAt(i) ^ b.charAt(i);
         }
         return result == 0;
+    }
+
+    /**
+     * Re-registers all Shopify order webhook topics for the seller's connected store.
+     * Safe to call multiple times — {@code registerIfMissing} is idempotent.
+     *
+     * @throws IllegalStateException if no connected Shopify platform found
+     */
+    public Map<String, Object> reRegisterWebhooks(Long sellerId) {
+        SellerPlatform platform = platformRepository.findBySellerId(sellerId)
+                .stream()
+                .filter(p -> p.getPlatformType() == PlatformType.SHOPIFY
+                          && p.getStatus() == ConnectionStatus.CONNECTED)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No connected Shopify store found for seller " + sellerId));
+
+        boolean ok = webhookRegistrationService.registerOrderWebhooks(platform);
+        String webhookUrl = config.getWebhookBaseUrl();
+        boolean urlConfigured = webhookUrl != null && webhookUrl.startsWith("https://");
+        return Map.of(
+                "registered", ok,
+                "shopUrl", platform.getStoreName() != null ? platform.getStoreName() : "unknown",
+                "webhookEndpoint", urlConfigured
+                        ? webhookUrl.replaceAll("/+$", "") + "/api/v1/webhooks/shopify/orders"
+                        : "(SHOPIFY_WEBHOOK_BASE_URL not configured)",
+                "topics", List.of("orders/create", "orders/updated", "orders/cancelled",
+                        "orders/paid", "orders/fulfilled"),
+                "hint", urlConfigured ? "" : "Set SHOPIFY_WEBHOOK_BASE_URL to a public HTTPS URL (e.g. ngrok) and retry."
+        );
     }
 
     public record OAuthStateEntry(String shop, Long sellerId, long createdAt) {}

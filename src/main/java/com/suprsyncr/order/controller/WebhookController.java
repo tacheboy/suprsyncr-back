@@ -8,6 +8,8 @@ import com.suprsyncr.integration.connector.ConnectorRegistry;
 import com.suprsyncr.integration.connector.ExternalOrder;
 import com.suprsyncr.integration.connector.ExternalOrderItem;
 import com.suprsyncr.integration.connector.WebhookValidator;
+import com.suprsyncr.integration.shopify.ShopifyOAuthConfig;
+import com.suprsyncr.notification.service.StoreNotificationService;
 import com.suprsyncr.order.dto.OrderDto;
 import com.suprsyncr.order.service.OrderService;
 import com.suprsyncr.seller.entity.PlatformType;
@@ -44,18 +46,24 @@ public class WebhookController {
     private final SellerPlatformRepository platformRepository;
     private final CredentialEncryptionService encryptionService;
     private final ObjectMapper objectMapper;
+    private final StoreNotificationService notificationService;
+    private final ShopifyOAuthConfig shopifyConfig;
     
     public WebhookController(
             OrderService orderService,
             ConnectorRegistry connectorRegistry,
             SellerPlatformRepository platformRepository,
             CredentialEncryptionService encryptionService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            StoreNotificationService notificationService,
+            ShopifyOAuthConfig shopifyConfig) {
         this.orderService = orderService;
         this.connectorRegistry = connectorRegistry;
         this.platformRepository = platformRepository;
         this.encryptionService = encryptionService;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
+        this.shopifyConfig = shopifyConfig;
     }
     
     /**
@@ -75,9 +83,11 @@ public class WebhookController {
     })
     public ResponseEntity<?> handleShopifyOrder(
             @RequestHeader("X-Shopify-Hmac-SHA256") String signature,
+            @RequestHeader(value = "X-Shopify-Topic", required = false) String topic,
+            @RequestHeader(value = "X-Shopify-Webhook-Id", required = false) String deliveryId,
             @RequestBody String payload) {
-        
-        return handleWebhook(PlatformType.SHOPIFY, signature, payload);
+        return handleWebhook(PlatformType.SHOPIFY, signature, payload,
+                topic == null || topic.isBlank() ? "orders/create" : topic, deliveryId);
     }
     
     /**
@@ -132,14 +142,28 @@ public class WebhookController {
             PlatformType platformType,
             String signature,
             String payload) {
+        return handleWebhook(platformType, signature, payload, null, null);
+    }
+
+    /**
+     * Common webhook handling logic. Shopify topics are retained so the seller
+     * receives a distinct notification for create/update/cancel/payment activity.
+     */
+    private ResponseEntity<?> handleWebhook(
+            PlatformType platformType,
+            String signature,
+            String payload,
+            String topic,
+            String deliveryId) {
+        SellerPlatform platform = null;
+        JsonNode orderJson = null;
         
         try {
             // Parse the payload to extract external order ID
-            JsonNode orderJson = objectMapper.readTree(payload);
-            String externalOrderId = extractExternalOrderId(orderJson, platformType);
+            orderJson = objectMapper.readTree(payload);
             
             // Find the platform connection by external order ID or store identifier
-            SellerPlatform platform = findPlatformForWebhook(orderJson, platformType);
+            platform = findPlatformForWebhook(orderJson, platformType);
             
             if (platform == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -159,16 +183,33 @@ public class WebhookController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(ErrorResponse.of("Unauthorized", "Invalid webhook signature", 401));
             }
+
+            // Shopify retries a delivery when an acknowledgement is lost. The
+            // delivery id gives us idempotency without suppressing a later order update.
+            if (platformType == PlatformType.SHOPIFY && notificationService.hasProcessedDelivery(deliveryId)) {
+                return ResponseEntity.ok(ApiResponse.success(Map.of("status", "duplicate_delivery")));
+            }
             
-            // Parse the order data
-            ExternalOrder externalOrder = parseOrderData(orderJson, platformType);
+            // Preserve existing marketplace ingestion for a newly-created order.
+            // Update/cancel/payment events are still persisted as notifications,
+            // but do not create another local order.
+            OrderDto orderDto = null;
+            if (platformType != PlatformType.SHOPIFY || "orders/create".equals(topic)) {
+                ExternalOrder externalOrder = parseOrderData(orderJson, platformType);
+                orderDto = orderService.ingestOrder(platform.getId(), externalOrder);
+            }
+
+            if (platformType == PlatformType.SHOPIFY) {
+                notificationService.recordShopifyOrderActivity(platform, topic, deliveryId, orderJson, payload);
+            }
             
-            // Ingest the order
-            OrderDto orderDto = orderService.ingestOrder(platform.getId(), externalOrder);
-            
-            return ResponseEntity.ok(ApiResponse.success(orderDto));
+            return ResponseEntity.ok(ApiResponse.success(orderDto != null ? orderDto : Map.of("status", "processed")));
             
         } catch (Exception e) {
+            if (platformType == PlatformType.SHOPIFY && platform != null) {
+                String shopDomain = orderJson == null ? null : orderJson.path("shop_domain").asText(null);
+                notificationService.recordFailedDelivery(platform, topic, deliveryId, shopDomain, payload, e);
+            }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ErrorResponse.of("Internal Server Error", "Failed to process webhook: " + e.getMessage(), 500));
         }
@@ -233,7 +274,10 @@ public class WebhookController {
      */
     private String getWebhookSecret(Map<String, String> credentials, PlatformType platformType) {
         return switch (platformType) {
-            case SHOPIFY -> credentials.get("api_secret");
+            // OAuth connections store the token only; Shopify signs app webhooks
+            // with the Partner app client secret. Manual connections may still
+            // provide api_secret, which takes precedence for compatibility.
+            case SHOPIFY -> credentials.getOrDefault("api_secret", shopifyConfig.getClientSecret());
             case BLINKIT -> credentials.get("api_secret");
             case WOOCOMMERCE -> credentials.get("webhook_secret");
         };

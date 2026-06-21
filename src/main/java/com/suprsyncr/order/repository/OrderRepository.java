@@ -51,7 +51,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 //        Pageable pageable
 //    );
     /**
-     * All filters (status + platform).
+     * All filters (status + platform). Callers must pass non-null date bounds;
+     * use wide defaults (epoch / far future) at the service layer for "no filter".
      */
     @Query("""
         SELECT o FROM Order o
@@ -140,6 +141,37 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * @return Map containing statistics: totalOrders, pendingOrders, acceptedOrders, 
      *         shippedOrders, deliveredOrders, cancelledOrders, returnedOrders, totalRevenue
      */
+    /**
+     * Eagerly load an order with all associations the attribution pipeline
+     * needs: items → productVariant → product, and platform. Avoids
+     * LazyInitializationException when AttributionService accesses these
+     * fields outside an open transaction.
+     */
+    @Query("""
+        SELECT o FROM Order o
+        LEFT JOIN FETCH o.items oi
+        LEFT JOIN FETCH oi.productVariant pv
+        LEFT JOIN FETCH pv.product
+        LEFT JOIN FETCH o.platform
+        WHERE o.id = :id
+        """)
+    Optional<Order> findByIdWithDetails(@Param("id") Long id);
+
+    /**
+     * Recent orders across all sellers, newest first, capped by Pageable.
+     * Used by the Scenario 3 attribution poller to find orders that may
+     * need attribution attempts. Cheap because Order is small per row and
+     * the index on orderedAt is hit directly.
+     */
+    @Query("""
+        SELECT o FROM Order o
+        WHERE o.orderedAt >= :since
+        ORDER BY o.orderedAt DESC
+        """)
+    java.util.List<com.suprsyncr.order.entity.Order> findRecentOrders(
+            @Param("since") LocalDateTime since,
+            org.springframework.data.domain.Pageable pageable);
+
     @Query("""
         SELECT new map(
             COUNT(o) as totalOrders,

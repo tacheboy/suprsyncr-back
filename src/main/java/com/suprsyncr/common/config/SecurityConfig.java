@@ -77,7 +77,11 @@ public class SecurityConfig {
                     // Analytics module — dummy data (dev profile only) + analytics read API
                     "/api/dummy/**",
                     "/api/analytics/**",
-                    "/api/autopilot/**"
+                    // Spring Boot's error dispatcher. Must be open so failures in
+                    // any controller can render their JSON error body instead of
+                    // returning an opaque 403 (which is what `Securing POST /error`
+                    // → `Http403ForbiddenEntryPoint` in the access log indicates).
+                    "/error"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

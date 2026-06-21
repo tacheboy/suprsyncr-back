@@ -9,6 +9,7 @@ import com.suprsyncr.common.exception.ValidationException;
 import com.suprsyncr.integration.connector.ConnectionTestResult;
 import com.suprsyncr.integration.connector.ConnectorRegistry;
 import com.suprsyncr.integration.connector.MarketplaceConnector;
+import com.suprsyncr.integration.shopify.ShopifyWebhookRegistrationService;
 import com.suprsyncr.seller.dto.*;
 import com.suprsyncr.seller.entity.*;
 import com.suprsyncr.seller.repository.SellerPlatformRepository;
@@ -35,7 +36,8 @@ public class SellerServiceImpl implements SellerService {
     private final CredentialEncryptionService encryptionService;
     private final ConnectorRegistry connectorRegistry;
     private final ObjectMapper objectMapper;
-    
+    private final ShopifyWebhookRegistrationService shopifyWebhookRegistrationService;
+
     public SellerServiceImpl(
             SellerRepository sellerRepository,
             SellerWarehouseRepository warehouseRepository,
@@ -43,7 +45,8 @@ public class SellerServiceImpl implements SellerService {
             AuthService authService,
             CredentialEncryptionService encryptionService,
             ConnectorRegistry connectorRegistry,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ShopifyWebhookRegistrationService shopifyWebhookRegistrationService) {
         this.sellerRepository = sellerRepository;
         this.warehouseRepository = warehouseRepository;
         this.platformRepository = platformRepository;
@@ -51,6 +54,7 @@ public class SellerServiceImpl implements SellerService {
         this.encryptionService = encryptionService;
         this.connectorRegistry = connectorRegistry;
         this.objectMapper = objectMapper;
+        this.shopifyWebhookRegistrationService = shopifyWebhookRegistrationService;
     }
 
     @Override
@@ -210,6 +214,16 @@ public class SellerServiceImpl implements SellerService {
         }
         
         platform = platformRepository.save(platform);
+
+        if (platform.getPlatformType() == PlatformType.SHOPIFY
+                && platform.getStatus() == ConnectionStatus.CONNECTED) {
+            try {
+                shopifyWebhookRegistrationService.registerOrderWebhooks(platform);
+            } catch (Exception e) {
+                // Non-fatal — platform is saved and usable without webhooks
+            }
+        }
+
         return toPlatformConnectionDto(platform);
     }
 

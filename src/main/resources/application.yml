@@ -78,8 +78,10 @@ aws:
 shopify:
   client-id: ${SHOPIFY_CLIENT_ID:}
   client-secret: ${SHOPIFY_CLIENT_SECRET:}
-  scopes: read_products,write_products,read_orders,write_orders,read_inventory,write_inventory,read_analytics
+  scopes: read_products,write_products,read_orders,write_orders,read_inventory,write_inventory,read_analytics,write_webhooks
   redirect-uri: ${SHOPIFY_REDIRECT_URI:http://localhost:8080/shopify/callback}
+  # Public HTTPS base URL Shopify posts to, e.g. https://api.example.com
+  webhook-base-url: ${SHOPIFY_WEBHOOK_BASE_URL:}
 
 # HTTP Client Configuration
 http:
@@ -126,14 +128,47 @@ springdoc:
   show-actuator: false
 
 # Autopilot Agent Service Configuration
+# NOTE: use 127.0.0.1 (not "localhost") for the engine URL. On Windows
+# "localhost" can resolve to IPv6 [::1] first; if uvicorn binds only to IPv4
+# 127.0.0.1 the backend gets "Failed to connect to localhost/[::1]:8081".
+# Pinning IPv4 avoids that entirely.
 autopilot:
-  agent-service-url: ${AGENT_SERVICE_URL:http://localhost:8081}
+  agent-service-url: ${AGENT_SERVICE_URL:http://127.0.0.1:8081}
   enabled: true
   daily-run-enabled: false
   # Inference Engine (Python :8081) — primary cognition path; stub is fallback only.
   engine:
     enabled: ${AUTOPILOT_ENGINE_ENABLED:true}
     budget-inr: ${AUTOPILOT_ENGINE_BUDGET_INR:5.0}
+
+# Product Studio (Scenario 2 — manual AI listing authoring)
+studio:
+  engine-url: ${STUDIO_ENGINE_URL:http://127.0.0.1:8081}
+  publish-to-shopify: ${STUDIO_PUBLISH_TO_SHOPIFY:false}
+  budget-inr: ${STUDIO_BUDGET_INR:3.0}
+
+# Sale Attribution (Scenario 3 — order-triggered)
+# Defaults to the autopilot engine URL when not set explicitly.
+attribution:
+  engine-url: ${ATTRIBUTION_ENGINE_URL:}
+  budget-inr: ${ATTRIBUTION_BUDGET_INR:5.0}
+  # Trigger gate: a sale is admitted for analysis when the product had an
+  # approved/applied Suprsyncr change within this many days.
+  gate-window-days: ${ATTRIBUTION_GATE_WINDOW_DAYS:30}
+  # Max similar products the manager can propagate to per run.
+  max-similar: ${ATTRIBUTION_MAX_SIMILAR:8}
+  # Auto-poller: scan recent orders for new attribution opportunities.
+  poll-enabled: ${ATTRIBUTION_POLL_ENABLED:true}
+  poll-interval-ms: ${ATTRIBUTION_POLL_INTERVAL_MS:60000}
+  poll-lookback-min: ${ATTRIBUTION_POLL_LOOKBACK_MIN:30}
+  poll-batch: ${ATTRIBUTION_POLL_BATCH:50}
+
+# Internal service-to-service auth (engine ↔ backend).
+# Shared secret used by the /api/internal/** filter chain. Empty disables
+# the internal endpoints (filter returns 503) so a missing env var fails
+# closed rather than open.
+internal:
+  service-token: ${INTERNAL_SERVICE_TOKEN:}
 
 # Server Configuration
 server:

@@ -32,7 +32,7 @@ import java.util.UUID;
  * Responsibilities:
  * 1. Create AgentRun record (QUEUED)
  * 2. Gather analytics context from AnalyticsOrchestrator
- * 3. Call AgentCommunicationService with context
+ * 3. Run the inference engine with context
  * 4. Track run status (RUNNING â†’ COMPLETE / FAILED)
  * 5. Proposals are persisted via the /api/autopilot/proposals/batch endpoint
  *    (called by the Python service when run completes)
@@ -43,7 +43,6 @@ import java.util.UUID;
 public class AgentRunOrchestratorService {
 
     private final AnalyticsOrchestrator analyticsOrchestrator;
-    private final AgentCommunicationService agentCommunicationService;
     private final AgentRunRepository agentRunRepository;
     private final ChangeManagementService changeManagementService;
     private final StubProposalGenerator stubProposalGenerator;

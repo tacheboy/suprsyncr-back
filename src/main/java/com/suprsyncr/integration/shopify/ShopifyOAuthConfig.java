@@ -11,6 +11,7 @@ public class ShopifyOAuthConfig {
     private String clientSecret;
     private String scopes;
     private String redirectUri;
+    private String webhookBaseUrl;
 
     public String getClientId() {
         return clientId;
@@ -42,5 +43,13 @@ public class ShopifyOAuthConfig {
 
     public void setRedirectUri(String redirectUri) {
         this.redirectUri = redirectUri;
+    }
+
+    public String getWebhookBaseUrl() {
+        return webhookBaseUrl;
+    }
+
+    public void setWebhookBaseUrl(String webhookBaseUrl) {
+        this.webhookBaseUrl = webhookBaseUrl;
     }
 }

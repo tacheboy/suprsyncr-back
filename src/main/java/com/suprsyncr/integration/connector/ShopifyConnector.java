@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -259,37 +260,56 @@ public class ShopifyConnector implements MarketplaceConnector {
     public List<ExternalOrder> fetchOrders(Map<String, String> credentials, LocalDateTime since) {
         String shopUrl = credentials.get("shop_url");
         String accessToken = credentials.get("access_token");
-        
-        log.info("Fetching orders from Shopify - Shop: {}, Since: {}", shopUrl, since);
-        
-        String createdAtMin = since.format(DateTimeFormatter.ISO_DATE_TIME);
-        String url = String.format("https://%s/admin/api/%s/orders.json?created_at_min=%s&status=any", 
-                shopUrl, API_VERSION, createdAtMin);
-        
-        Request request = new Request.Builder()
-                .url(url)
-                .header("X-Shopify-Access-Token", accessToken)
-                .get()
-                .build();
-        
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (response.isSuccessful() && response.body() != null) {
-                JsonNode jsonNode = objectMapper.readTree(response.body().string());
-                List<ExternalOrder> orders = parseOrders(jsonNode);
-                log.info("Fetched {} orders from Shopify - Shop: {}", orders.size(), shopUrl);
-                return orders;
-            } else {
-                String errorBody = response.body() != null ? response.body().string() : "No response body";
-                log.error("Failed to fetch orders from Shopify - Shop: {}, Status: {}", 
-                        shopUrl, response.code());
-                throw new MarketplaceApiException("SHOPIFY", response.code(), 
-                        "Failed to fetch orders: " + errorBody);
-            }
-        } catch (IOException e) {
-            log.error("Error fetching orders from Shopify - Shop: {}", shopUrl, e);
-            throw new MarketplaceApiException("SHOPIFY", null, 
-                    "Error fetching orders: " + e.getMessage(), e);
+        if (shopUrl == null || accessToken == null) {
+            throw new MarketplaceApiException("SHOPIFY", null, "Missing shop_url or access_token");
         }
+
+        // Shopify's created_at_min expects ISO 8601 with timezone. Treat the
+        // caller's LocalDateTime as UTC and emit "...Z" so the cutoff is
+        // unambiguous regardless of shop locale.
+        String createdAtMin = since.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        log.info("Fetching orders from Shopify - Shop: {}, Since: {} (UTC)", shopUrl, createdAtMin);
+
+        HttpUrl firstUrl = new HttpUrl.Builder()
+                .scheme("https")
+                .host(shopUrl)
+                .addPathSegments("admin/api/" + API_VERSION + "/orders.json")
+                .addQueryParameter("created_at_min", createdAtMin)
+                .addQueryParameter("status", "any")
+                .addQueryParameter("limit", "250")
+                .build();
+
+        List<ExternalOrder> all = new ArrayList<>();
+        String nextUrl = firstUrl.toString();
+        int safetyLimit = 40; // cap at ~10k orders per poll cycle
+
+        while (nextUrl != null && safetyLimit-- > 0) {
+            Request request = new Request.Builder()
+                    .url(nextUrl)
+                    .header("X-Shopify-Access-Token", accessToken)
+                    .get()
+                    .build();
+
+            try (Response response = httpClient.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    String errorBody = response.body() != null ? response.body().string() : "No response body";
+                    log.error("Failed to fetch orders from Shopify - Shop: {}, Status: {}", shopUrl, response.code());
+                    throw new MarketplaceApiException("SHOPIFY", response.code(),
+                            "Failed to fetch orders: " + errorBody);
+                }
+                JsonNode jsonNode = objectMapper.readTree(response.body().string());
+                List<ExternalOrder> page = parseOrders(jsonNode);
+                all.addAll(page);
+                nextUrl = parseNextLink(response.header("Link"));
+            } catch (IOException e) {
+                log.error("Error fetching orders from Shopify - Shop: {}", shopUrl, e);
+                throw new MarketplaceApiException("SHOPIFY", null,
+                        "Error fetching orders: " + e.getMessage(), e);
+            }
+        }
+
+        log.info("Fetched {} orders from Shopify - Shop: {}", all.size(), shopUrl);
+        return all;
     }
     
     @Override
@@ -419,15 +439,27 @@ public class ShopifyConnector implements MarketplaceConnector {
             productNode.set("variants", variantsArray);
         }
         
-        // Add images
+        // Add images. Shopify accepts either a public URL ("src") or inline
+        // base64 ("attachment"). Product Studio uploads images as data: URLs so
+        // the vision model can read them without public hosting — for those we
+        // strip the data-URI prefix and send the raw base64 as "attachment".
         if (product.getImageUrls() != null && !product.getImageUrls().isEmpty()) {
             var imagesArray = objectMapper.createArrayNode();
             for (String imageUrl : product.getImageUrls()) {
+                if (imageUrl == null || imageUrl.isBlank()) continue;
                 ObjectNode imageNode = objectMapper.createObjectNode();
-                imageNode.put("src", imageUrl);
+                if (imageUrl.startsWith("data:")) {
+                    int comma = imageUrl.indexOf(',');
+                    if (comma < 0) continue; // malformed data URI — skip
+                    imageNode.put("attachment", imageUrl.substring(comma + 1));
+                } else {
+                    imageNode.put("src", imageUrl);
+                }
                 imagesArray.add(imageNode);
             }
-            productNode.set("images", imagesArray);
+            if (!imagesArray.isEmpty()) {
+                productNode.set("images", imagesArray);
+            }
         }
         
         root.set("product", productNode);

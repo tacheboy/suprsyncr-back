@@ -10,9 +10,12 @@ import com.suprsyncr.seller.repository.SellerRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -120,6 +123,34 @@ public class ShopifyOAuthController {
                 "if(window.opener){window.opener.postMessage({type:'shopify-connected',success:false,error:" +
                 escapeJs(message) + "},'*')}</script>"
         );
+    }
+
+    /**
+     * Re-registers all Shopify order webhook topics for the authenticated seller's store.
+     * Safe to call multiple times (idempotent). Requires SHOPIFY_WEBHOOK_BASE_URL to be
+     * configured to a public HTTPS URL — returns a hint in the response when it isn't.
+     */
+    @PostMapping("/api/v1/shopify/webhooks/register")
+    public ResponseEntity<?> registerWebhooks() {
+        User currentUser = authService.getCurrentUser();
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        Seller seller = sellerRepository.findByUserId(currentUser.getId()).orElse(null);
+        if (seller == null) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(false, null, "Seller profile not found", LocalDateTime.now()));
+        }
+        try {
+            return ResponseEntity.ok(ApiResponse.success(shopifyOAuthService.reRegisterWebhooks(seller.getId())));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(false, null, e.getMessage(), LocalDateTime.now()));
+        } catch (Exception e) {
+            log.error("Webhook re-registration failed for seller {}: {}", seller.getId(), e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new ApiResponse<>(false, null, "Webhook registration failed: " + e.getMessage(), LocalDateTime.now()));
+        }
     }
 
     private String escapeJs(String s) {

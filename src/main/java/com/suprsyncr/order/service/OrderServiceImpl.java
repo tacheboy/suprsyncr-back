@@ -127,9 +127,11 @@ public class OrderServiceImpl implements OrderService {
         User currentUser = authService.getCurrentUser();
         Seller seller = findSellerByUser(currentUser);
 
-        // Apply default date range if not provided
-        LocalDateTime start = startDate != null ? startDate : LocalDateTime.now().minusMonths(3);
-        LocalDateTime end = endDate != null ? endDate : LocalDateTime.now();
+        // When the caller passes no date bounds we use a very wide window
+        // (epoch -> +10 years) instead of the previous 3-month default, so
+        // historical Shopify orders are not silently hidden from the list.
+        LocalDateTime start = startDate != null ? startDate : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime end   = endDate   != null ? endDate   : LocalDateTime.now().plusYears(10);
 
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
 
@@ -404,10 +406,19 @@ public class OrderServiceImpl implements OrderService {
             item.setUnitPrice(externalItem.unitPrice());
             item.setTotalPrice(externalItem.unitPrice().multiply(BigDecimal.valueOf(externalItem.quantity())));
             
-            // Try to find matching product variant by external product ID
-            // This is a simplified approach - in production you'd have a mapping table
-            // For now, we'll leave productVariant as null if not found
-            
+            // Link the local ProductVariant so attribution can trace this item
+            // back to its catalogue product. Shopify products are stored with
+            // sku = "shopify-{externalProductId}".
+            if (externalItem.externalProductId() != null) {
+                String shopifySku = "shopify-" + externalItem.externalProductId();
+                List<ProductVariant> variants = productVariantRepository
+                        .findByProductSellerIdAndProductSku(
+                                platform.getSeller().getId(), shopifySku);
+                if (!variants.isEmpty()) {
+                    item.setProductVariant(variants.get(0));
+                }
+            }
+
             items.add(item);
             totalAmount = totalAmount.add(item.getTotalPrice());
         }
@@ -434,12 +445,12 @@ public class OrderServiceImpl implements OrderService {
             String decryptedCredentials = credentialEncryptionService.decrypt(platform.getEncryptedCredentials());
             Map<String, String> credentials = parseCredentials(decryptedCredentials);
             
-            LocalDateTime since = platform.getLastSyncedAt() != null 
-                ? platform.getLastSyncedAt() 
-                : LocalDateTime.now().minusDays(7);
-            
+            LocalDateTime since = platform.getLastSyncedAt() != null
+                ? platform.getLastSyncedAt()
+                : LocalDateTime.now().minusDays(90);
+
             List<ExternalOrder> externalOrders = connector.fetchOrders(credentials, since);
-            
+
             for (ExternalOrder externalOrder : externalOrders) {
                 ingestOrder(platformId, externalOrder);
             }

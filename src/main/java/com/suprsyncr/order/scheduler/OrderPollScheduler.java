@@ -8,6 +8,9 @@ import com.suprsyncr.integration.connector.MarketplaceConnector;
 import com.suprsyncr.integration.entity.ConnectorFailure;
 import com.suprsyncr.integration.entity.FailureType;
 import com.suprsyncr.integration.repository.ConnectorFailureRepository;
+import com.suprsyncr.notification.entity.NotificationType;
+import com.suprsyncr.notification.service.StoreNotificationService;
+import com.suprsyncr.order.repository.OrderRepository;
 import com.suprsyncr.order.service.OrderService;
 import com.suprsyncr.seller.entity.ConnectionStatus;
 import com.suprsyncr.seller.entity.SellerPlatform;
@@ -20,7 +23,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,31 +41,39 @@ public class OrderPollScheduler {
     private final SellerPlatformRepository sellerPlatformRepository;
     private final ConnectorRegistry connectorRegistry;
     private final OrderService orderService;
+    private final OrderRepository orderRepository;
     private final CredentialEncryptionService credentialEncryptionService;
     private final ConnectorFailureRepository connectorFailureRepository;
+    private final StoreNotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     public OrderPollScheduler(
         SellerPlatformRepository sellerPlatformRepository,
         ConnectorRegistry connectorRegistry,
         OrderService orderService,
+        OrderRepository orderRepository,
         CredentialEncryptionService credentialEncryptionService,
         ConnectorFailureRepository connectorFailureRepository,
+        StoreNotificationService notificationService,
         ObjectMapper objectMapper
     ) {
         this.sellerPlatformRepository = sellerPlatformRepository;
         this.connectorRegistry = connectorRegistry;
         this.orderService = orderService;
+        this.orderRepository = orderRepository;
         this.credentialEncryptionService = credentialEncryptionService;
         this.connectorFailureRepository = connectorFailureRepository;
+        this.notificationService = notificationService;
         this.objectMapper = objectMapper;
     }
     
     /**
      * Polls all connected platforms for new orders every 2 minutes.
      * Uses fixed delay to prevent overlapping executions.
+     * initialDelay = 5s so a newly-restarted backend pulls orders quickly
+     * instead of making the operator wait a full poll cycle.
      */
-    @Scheduled(fixedDelay = 120000) // 2 minutes = 120000 milliseconds
+    @Scheduled(fixedDelay = 120000, initialDelay = 5000)
     public void pollOrders() {
         logger.info("Starting scheduled order polling");
         
@@ -100,10 +110,13 @@ public class OrderPollScheduler {
             String decryptedCredentials = credentialEncryptionService.decrypt(platform.getEncryptedCredentials());
             Map<String, String> credentials = parseCredentials(decryptedCredentials);
             
-            // Determine since timestamp: lastSyncedAt or last 7 days if null
-            LocalDateTime since = platform.getLastSyncedAt() != null 
-                ? platform.getLastSyncedAt() 
-                : LocalDateTime.now().minusDays(7);
+            // Determine since timestamp: lastSyncedAt or last 90 days on first poll.
+            // 90 days gives newly-connected stores a meaningful historical backlog
+            // for evidence/funnel signals. After the first successful poll
+            // lastSyncedAt is set to now() so subsequent polls only pull deltas.
+            LocalDateTime since = platform.getLastSyncedAt() != null
+                ? platform.getLastSyncedAt()
+                : LocalDateTime.now().minusDays(90);
             
             logger.debug("Fetching orders for platform {} since {}", platform.getId(), since);
             
@@ -112,14 +125,27 @@ public class OrderPollScheduler {
             
             logger.info("Fetched {} orders from platform {}", externalOrders.size(), platform.getId());
             
-            // Ingest each order
+            // Ingest each order; fire a notification only for genuinely new orders
             for (ExternalOrder externalOrder : externalOrders) {
                 try {
+                    boolean isNew = orderRepository
+                            .findByExternalOrderId(externalOrder.externalOrderId()).isEmpty();
                     orderService.ingestOrder(platform.getId(), externalOrder);
+                    if (isNew) {
+                        try {
+                            notificationService.createInternalNotification(
+                                    platform, NotificationType.NEW_ORDER, "orders/polled",
+                                    externalOrder.externalOrderId(),
+                                    externalOrder.customerName(),
+                                    externalOrder.totalAmount(), "INR");
+                        } catch (Exception ne) {
+                            logger.warn("notification skipped for order {}: {}",
+                                    externalOrder.externalOrderId(), ne.getMessage());
+                        }
+                    }
                 } catch (Exception e) {
-                    logger.error("Failed to ingest order {} from platform {}: {}", 
+                    logger.error("Failed to ingest order {} from platform {}: {}",
                         externalOrder.externalOrderId(), platform.getId(), e.getMessage());
-                    // Continue with next order
                 }
             }
             
@@ -189,10 +215,14 @@ public class OrderPollScheduler {
     
     private Map<String, String> parseCredentials(String credentialsJson) {
         try {
-            return objectMapper.readValue(credentialsJson, new TypeReference<Map<String, String>>() {});
+            Map<String, String> credentials = objectMapper.readValue(
+                    credentialsJson, new TypeReference<Map<String, String>>() {});
+            if (credentials == null) {
+                throw new IllegalArgumentException("Decrypted platform credentials JSON must not be null");
+            }
+            return credentials;
         } catch (Exception e) {
-            logger.error("Failed to parse platform credentials JSON: {}", e.getMessage());
-            return new HashMap<>();
+            throw new IllegalArgumentException("Failed to parse decrypted platform credentials", e);
         }
     }
 }
